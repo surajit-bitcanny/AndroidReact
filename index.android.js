@@ -9,10 +9,28 @@ import {
   AppRegistry,
   StyleSheet,
   Text,
-  View
+  View,
+    Button,
+    TouchableHighlight
 } from 'react-native';
 
+global.Buffer = require('buffer').Buffer;
+const c = require('./central');
+
 export default class ReactAndroid extends Component {
+
+    constructor(props){
+        super(props)
+    }
+
+    bytes(size) {
+        var str = '';
+        for(let i = 0; i < size; i++) {
+            str += 'a';
+        }
+        return str;
+    }
+
   render() {
     return (
       <View style={styles.container}>
@@ -26,9 +44,50 @@ export default class ReactAndroid extends Component {
           Double tap R on your keyboard to reload,{'\n'}
           Shake or press menu button for dev menu
         </Text>
+
+          <TouchableHighlight style={{padding: 20, backgroundColor: '#ccc'}}
+                              onPress={() => this.onPressConnect()}>
+              <Text>Connect</Text>
+          </TouchableHighlight>
+
+          <TouchableHighlight style={{padding: 20, backgroundColor: '#ccc'}}
+                              onPress={() => this.onPressDisconnect()}>
+              <Text>Disconnect</Text>
+          </TouchableHighlight>
+
       </View>
     );
   }
+
+    onPressConnect(){
+
+        c.on('scanComplete', () => {
+            c.connect('06:ce:09:41:b3:e7');
+        });
+
+        c.on('connect', () => {
+            c.send({ m : 'sc',
+                n : 12345678910,
+                s : 4,
+                g : this.bytes(1000),
+                c : 54321
+            })
+        });
+
+
+        c.on('data', (characteristic, data) => {
+            console.log('\nWe got data from ' + characteristic.uuid + ': ' + JSON.stringify(data));
+        });
+
+        c.on('error',(data)=>{
+            console.log("Error : "+data);
+        });
+
+        c.startScanning();
+    }
+    onPressDisconnect(){
+        c.disconnect('06:ce:09:41:b3:e7');
+    }
 }
 
 const styles = StyleSheet.create({
@@ -51,3 +110,5 @@ const styles = StyleSheet.create({
 });
 
 AppRegistry.registerComponent('ReactAndroid', () => ReactAndroid);
+
+//AppRegistry.registerComponent('ReactAndroid', () => App);
