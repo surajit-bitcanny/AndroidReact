@@ -89,6 +89,7 @@ function stopScanning() {
 function connect(address) {
     let peripheral = getPeripheral(address);
     if(peripheral) {
+        console.log('\nConnecting to '+address);
         peripheral.on('connect', () => {
             /*
                 But do not emit 'connect' until we have discovered
@@ -104,23 +105,30 @@ function connect(address) {
         });
         peripheral.connect(function(err) {
             if (!err) {
+                console.log("Discovering Services");
                 peripheral.discoverServices([uuids.serviceUuid], (err, services) => {
                     if(!err) {
+                        console.log(services);
+                        console.log("Discovering Characteristics");
                         services[0].discoverCharacteristics([uuids.commandCharUuid,uuids.connTypeCharUuid,uuids.devInfoCharUuid], (err, characteristics) => {
                             if(!err)
                             {
                                 /*
                                     Find characteristics
                                 */
+
                                 characteristics.forEach((characteristic) => {
                                     if(characteristic.uuid == uuids.commandCharUuid) {
                                         commandChar = characteristic;
+                                        console.log("Found characteristics "+commandChar.uuid);
                                     }
                                     else if(characteristic.uuid == uuids.connTypeCharUuid) {
                                         connTypeChar = characteristic;
+                                        console.log("Found characteristics "+connTypeChar.uuid);
                                     }
                                     else if(characteristic.uuid == uuids.devInfoCharUuid) {
                                         devInfoChar = characteristic;
+                                        console.log("Found characteristics "+devInfoChar.uuid);
                                     }
                                 });
                                 if (commandChar && connTypeChar && devInfoChar) {
@@ -134,8 +142,10 @@ function connect(address) {
                                             outstandingWrites++;
                                         }
                                     });
+                                    console.log("Subscribing to "+connTypeChar.uuid);
                                     connTypeChar.subscribe((err) => {
                                         if(!err) {
+                                            console.log("Subscription success");
                                             connTypeChar.on('data', (data) => {
                                                 if(data.byteLength > 0) {
                                                     connectionType += data.toString('utf-8');
@@ -144,24 +154,29 @@ function connect(address) {
                                                     connectionType = '';
                                                 }
                                             });
-                                            devInfoChar.subscribe((err) => {
-                                                if(!err) {
-                                                    devInfoChar.on('data', (data) => {
-                                                        if(data.byteLength > 0) {
-                                                            deviceInfo += data.toString('utf-8');
-                                                        } else {
-                                                            myEmitter.emit('data', devInfoChar, JSON.parse(deviceInfo));
-                                                            deviceInfo = '';
-                                                        }
-                                                    });
-                                                    /*
-                                                          Emit 'connect'
-                                                    */
-                                                    myEmitter.emit('connect', peripheral.address);
-                                                } else {
-                                                    myEmitter.emit('error', 'Connect error: Could not subscribe to char: ' + devInfoChar.uuid);
-                                                }
-                                            });
+                                            console.log("Subscribing to "+devInfoChar.uuid);
+                                            setTimeout(()=>{
+                                                devInfoChar.subscribe((err) => {
+                                                    if(!err) {
+                                                        console.log("Subscription success");
+                                                        devInfoChar.on('data', (data) => {
+                                                            if(data.byteLength > 0) {
+                                                                deviceInfo += data.toString('utf-8');
+                                                            } else {
+                                                                myEmitter.emit('data', devInfoChar, JSON.parse(deviceInfo));
+                                                                deviceInfo = '';
+                                                            }
+                                                        });
+                                                        /*
+                                                              Emit 'connect'
+                                                        */
+                                                        myEmitter.emit('connect', peripheral.address);
+                                                    } else {
+                                                        myEmitter.emit('error', 'Connect error: Could not subscribe to char: ' + devInfoChar.uuid);
+                                                    }
+                                                });
+                                            },100);
+
                                         } else {
                                             myEmitter.emit('error', 'Connect error: Could not subscribe to char: ' + connTypeChar.uuid);
                                         }
@@ -214,7 +229,7 @@ function send(obj) {
         if(commandChar) {
             let data = new Buffer(JSON.stringify(obj));
             let length = data.byteLength;
-            var chunkSize = 512;
+            var chunkSize = 20;
 
             if(writeQ.length + Math.ceil(length/chunkSize) < maxQLength) {
                 for (var start = 0, end = chunkSize; start < length; start += chunkSize, end += chunkSize) {

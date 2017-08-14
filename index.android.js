@@ -11,7 +11,9 @@ import {
   Text,
   View,
     Button,
-    TouchableHighlight
+    TouchableHighlight,
+    PermissionsAndroid,
+    Platform
 } from 'react-native';
 
 global.Buffer = require('buffer').Buffer;
@@ -21,6 +23,8 @@ export default class ReactAndroid extends Component {
 
     constructor(props){
         super(props)
+        this.checkPermission();
+        this.setupBluetooth();
     }
 
     bytes(size) {
@@ -45,49 +49,107 @@ export default class ReactAndroid extends Component {
           Shake or press menu button for dev menu
         </Text>
 
-          <TouchableHighlight style={{padding: 20, backgroundColor: '#ccc'}}
+          <TouchableHighlight style={{padding: 20,margin:20, backgroundColor: '#ccc'}}
                               onPress={() => this.onPressConnect()}>
               <Text>Connect</Text>
           </TouchableHighlight>
 
-          <TouchableHighlight style={{padding: 20, backgroundColor: '#ccc'}}
+          <TouchableHighlight style={{padding: 20,margin:20, backgroundColor: '#ccc'}}
                               onPress={() => this.onPressDisconnect()}>
               <Text>Disconnect</Text>
+          </TouchableHighlight>
+
+          <TouchableHighlight style={{padding: 20,margin:20, backgroundColor: '#ccc'}}
+                              onPress={() => this.onPressWrite()}>
+              <Text>Write Data</Text>
           </TouchableHighlight>
 
       </View>
     );
   }
 
+  setupBluetooth(){
+      c.on('scanComplete', () => {
+          c.connect('06:ce:09:41:b3:e7');
+      });
+
+      c.on('connect', () => {
+          console.log("Successfully connected...");
+      });
+
+
+      c.on('data', (characteristic, data) => {
+          console.log('\nWe got data from ' + characteristic.uuid + ': ' + JSON.stringify(data));
+      });
+
+      c.on('error',(data)=>{
+          console.log("Error : "+data);
+      });
+  }
+
+    onPressWrite(){
+        console.log("Sending data...");
+        c.send({ m : 'sc',
+            n : 12345678910,
+            s : 4,
+            g : this.bytes(1000),
+            c : 54321
+        });
+    }
+
     onPressConnect(){
-
-        c.on('scanComplete', () => {
-            c.connect('06:ce:09:41:b3:e7');
-        });
-
-        c.on('connect', () => {
-            c.send({ m : 'sc',
-                n : 12345678910,
-                s : 4,
-                g : this.bytes(1000),
-                c : 54321
-            })
-        });
-
-
-        c.on('data', (characteristic, data) => {
-            console.log('\nWe got data from ' + characteristic.uuid + ': ' + JSON.stringify(data));
-        });
-
-        c.on('error',(data)=>{
-            console.log("Error : "+data);
-        });
 
         c.startScanning();
     }
+
     onPressDisconnect(){
         c.disconnect('06:ce:09:41:b3:e7');
     }
+
+    checkPermission() {
+        if (Platform.OS === 'android' && Platform.Version >= 23) {
+            PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION).then((result) => {
+                if (result) {
+                    this.showMessage("Permission is OK");
+                } else {
+                    /*PermissionsAndroid.requestPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION).then((result) => {
+                        if (result) {
+                            this.showMessage("Location permission accept");
+                        } else {
+                            this.showMessage("Location permission refuse");
+                        }
+                    });*/
+                    this.requestLocationPermission();
+                }
+            });
+        }
+    }
+
+    showMessage(msg){
+        console.log(msg);
+    }
+
+     requestLocationPermission() {
+        try {
+
+            const granted =  PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+                {
+                    'title': 'Location Permission',
+                    'message': 'Need location permission for bluetooth access'
+                }
+            );
+            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                console.log("Location permission granted...")
+            } else {
+                console.log("Location permission denied...")
+            }
+
+        } catch (err) {
+            console.warn(err)
+        }
+    }
+
 }
 
 const styles = StyleSheet.create({
